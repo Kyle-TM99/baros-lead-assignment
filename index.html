@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BAROS CRM · 리드 배정 — 리드는 사라지지 않습니다</title>
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:title" content="BAROS CRM · 리드 배정">
+<meta property="og:description" content="리드는 사라지지 않습니다. 누가 왜 받았는지도 남습니다.">
+<meta property="og:type" content="website">
+<meta name="description" content="접수된 리드가 사라지지 않고, 누가 왜 받았는지 남는 구조. BAROS CRM 리드 배정 엔진의 설계 원칙과 근거.">
+<style>
+  :root{
+    --ink:#0D1526;
+    --ink-2:#1E2A42;
+    --muted:#5C6B85;
+    --muted-2:#8593AB;
+    --line:#E3E8F1;
+    --line-2:#EFF2F7;
+    --bg:#FFFFFF;
+    --soft:#F6F8FC;
+    --soft-2:#FAFBFD;
+    --accent:#2563EB;
+    --accent-deep:#17356E;
+    --accent-soft:#EEF3FE;
+    --warn:#B45309;
+    --warn-soft:#FEF6EC;
+    --good:#0F766E;
+    --good-soft:#ECF7F5;
+    --radius:14px;
+    --maxw:1080px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Pretendard','Pretendard Variable',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif;
+    font-size:17px;
+    line-height:1.75;
+    letter-spacing:-0.01em;
+    -webkit-font-smoothing:antialiased;
+    word-break:keep-all;
+    overflow-wrap:anywhere;
+  }
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .narrow{max-width:760px}
+
+  /* ── 타이포 ───────────────────────── */
+  h1,h2,h3,h4{line-height:1.35;letter-spacing:-0.03em;margin:0}
+  h1{font-size:clamp(30px,5.2vw,50px);font-weight:800}
+  h2{font-size:clamp(24px,3.4vw,34px);font-weight:750}
+  h3{font-size:clamp(19px,2.2vw,22px);font-weight:700}
+  h4{font-size:17px;font-weight:700}
+  p{margin:0 0 18px}
+  .lead{font-size:clamp(18px,2.1vw,21px);color:var(--ink-2);line-height:1.72}
+  .muted{color:var(--muted)}
+  .small{font-size:14.5px;line-height:1.65}
+  strong{font-weight:700;color:var(--ink)}
+  em{font-style:normal;background:linear-gradient(transparent 62%,#DCE7FF 62%);font-weight:600}
+  code{font-family:ui-monospace,SFMono-Regular,'JetBrains Mono',Menlo,monospace;font-size:0.87em;background:var(--soft);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--accent-deep)}
+
+  /* ── 섹션 ───────────────────────── */
+  section{padding:84px 0;border-top:1px solid var(--line-2)}
+  section.alt{background:var(--soft-2)}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12.5px;font-weight:700;letter-spacing:0.12em;
+    color:var(--accent);text-transform:uppercase;margin-bottom:18px;
+  }
+  .eyebrow::before{content:"";width:22px;height:2px;background:var(--accent);border-radius:2px}
+  .sec-head{margin-bottom:44px;max-width:760px}
+  .sec-head p{margin-top:16px;margin-bottom:0}
+
+  /* ── 히어로 ───────────────────────── */
+  .hero{
+    padding:96px 0 88px;
+    background:
+      radial-gradient(1100px 460px at 8% -12%,#EAF0FF 0%,rgba(234,240,255,0) 60%),
+      radial-gradient(900px 420px at 96% 0%,#F0F7F5 0%,rgba(240,247,245,0) 58%);
+    border-top:none;
+  }
+  .brandline{
+    display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:700;
+    letter-spacing:0.06em;color:var(--accent-deep);margin-bottom:26px;
+  }
+  .brandline .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  .brandline .sep{color:var(--muted-2);font-weight:500}
+  .hero h1{max-width:16em}
+  .hero h1 .b{display:block;color:var(--accent-deep)}
+  .hero .lead{margin-top:26px;max-width:44em}
+  .hero-meta{
+    display:flex;flex-wrap:wrap;gap:10px;margin-top:34px;
+  }
+  .chip{
+    font-size:13.5px;font-weight:600;color:var(--accent-deep);
+    background:#fff;border:1px solid #D5E0F7;border-radius:100px;padding:7px 15px;
+  }
+
+  /* ── 문제 카드 ───────────────────── */
+  .grid{display:grid;gap:18px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .card{
+    background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+    padding:26px 24px;
+  }
+  .card .n{
+    font-size:12px;font-weight:800;letter-spacing:0.1em;color:var(--muted-2);
+    display:block;margin-bottom:12px;
+  }
+  .card h4{margin-bottom:8px}
+  .card p{margin:0;font-size:15px;line-height:1.7;color:var(--muted)}
+  .card.accentline{border-top:3px solid var(--accent)}
+
+  .callout{
+    border-left:3px solid var(--accent);
+    background:var(--accent-soft);
+    padding:22px 26px;border-radius:0 12px 12px 0;margin:32px 0;
+  }
+  .callout p:last-child{margin-bottom:0}
+  .callout.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+  .callout.good{border-left-color:var(--good);background:var(--good-soft)}
+
+  /* ── 표 ───────────────────────── */
+  .tablebox{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:#fff}
+  .tablebox + .tablebox{margin-top:22px}
+  .tablebox .cap{
+    padding:16px 22px;background:var(--soft);border-bottom:1px solid var(--line);
+    font-size:14.5px;font-weight:700;color:var(--ink-2);
+  }
+  .tablebox .cap span{font-weight:500;color:var(--muted);margin-left:8px}
+  .scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:15px;min-width:520px}
+  th,td{padding:14px 22px;text-align:left;border-bottom:1px solid var(--line-2);vertical-align:top}
+  th{font-size:12.5px;font-weight:700;letter-spacing:0.06em;color:var(--muted);text-transform:uppercase;background:#fff}
+  tr:last-child td{border-bottom:none}
+  td:first-child{font-weight:650;color:var(--ink);white-space:nowrap}
+  td.val{font-variant-numeric:tabular-nums;color:var(--accent-deep);font-weight:600;white-space:nowrap}
+  td.desc{color:var(--muted)}
+
+  /* ── 전략 카드 ───────────────────── */
+  .strat{display:grid;gap:16px;grid-template-columns:repeat(3,1fr);margin-top:8px}
+  .strat .s{
+    border:1px solid var(--line);border-radius:var(--radius);padding:24px 22px;background:#fff;
+  }
+  .strat .s .tag{
+    font-family:ui-monospace,monospace;font-size:11.5px;font-weight:700;letter-spacing:0.06em;
+    color:var(--accent);background:var(--accent-soft);border-radius:5px;padding:3px 8px;display:inline-block;margin-bottom:12px;
+  }
+  .strat .s h4{margin-bottom:8px}
+  .strat .s p{font-size:14.5px;color:var(--muted);margin:0}
+
+  /* ── 시뮬레이터 ───────────────────── */
+  .sim{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#fff;margin-top:10px}
+  .sim-head{padding:22px 26px 20px;border-bottom:1px solid var(--line);background:var(--soft)}
+  .sim-head h4{margin-bottom:6px}
+  .sim-head p{margin:0;font-size:14.5px;color:var(--muted)}
+  .sim-tabs{display:flex;flex-wrap:wrap;gap:8px;padding:18px 26px;border-bottom:1px solid var(--line-2)}
+  .sim-tabs button{
+    font-family:inherit;font-size:14px;font-weight:650;letter-spacing:-0.01em;
+    border:1px solid var(--line);background:#fff;color:var(--muted);
+    border-radius:100px;padding:9px 16px;cursor:pointer;transition:all .15s ease;
+  }
+  .sim-tabs button:hover{border-color:#C6D4F0;color:var(--accent-deep)}
+  .sim-tabs button[aria-selected="true"]{background:var(--accent-deep);border-color:var(--accent-deep);color:#fff}
+  .sim-body{padding:0}
+  .sim-body table{min-width:600px;font-size:14.5px}
+  .sim-body th,.sim-body td{padding:13px 26px}
+  .sim-body tr.win{background:#F4F8FF}
+  .sim-body tr.win td:first-child::after{
+    content:"배정";font-size:11px;font-weight:800;letter-spacing:0.06em;color:#fff;background:var(--accent);
+    border-radius:4px;padding:2px 6px;margin-left:8px;vertical-align:1px;
+  }
+  .sim-body tr.skip td{color:var(--muted-2)}
+  .sim-body tr.skip td:first-child{color:var(--muted-2);text-decoration:line-through;text-decoration-color:#C9D2E2}
+  .sim-note{padding:20px 26px;background:var(--soft-2);border-top:1px solid var(--line-2);font-size:14.5px;color:var(--ink-2)}
+  .sim-note b{color:var(--accent-deep)}
+
+  /* ── 스텝 ───────────────────────── */
+  .steps{counter-reset:st;display:grid;gap:2px;margin-top:6px;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .steps .st{
+    display:grid;grid-template-columns:56px 1fr;gap:18px;align-items:start;
+    padding:20px 24px;background:#fff;border-bottom:1px solid var(--line-2);
+  }
+  .steps .st:last-child{border-bottom:none}
+  .steps .st .idx{
+    counter-increment:st;
+    width:34px;height:34px;border-radius:9px;background:var(--accent-soft);color:var(--accent-deep);
+    display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;
+  }
+  .steps .st .idx::before{content:counter(st)}
+  .steps .st h4{margin-bottom:5px}
+  .steps .st p{margin:0;font-size:15px;color:var(--muted)}
+
+  /* ── 사유 태그 ───────────────────── */
+  .taglist{display:flex;flex-wrap:wrap;gap:9px;margin:6px 0 0}
+  .taglist .t{
+    font-size:13.5px;font-weight:600;color:var(--ink-2);background:#fff;
+    border:1px solid var(--line);border-radius:8px;padding:8px 13px;
+  }
+  .taglist .t span{color:var(--muted-2);font-weight:500;margin-left:6px;font-size:12.5px}
+
+  /* ── 대비 표 ───────────────────── */
+  .vs{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:#fff}
+  .vs .row{display:grid;grid-template-columns:1fr 1.25fr;border-bottom:1px solid var(--line-2)}
+  .vs .row:last-child{border-bottom:none}
+  .vs .row .a,.vs .row .b{padding:20px 24px}
+  .vs .row .a{background:var(--soft-2);border-right:1px solid var(--line-2);color:var(--muted);font-size:15px}
+  .vs .row .b{font-size:15px;color:var(--ink-2)}
+  .vs .head{display:grid;grid-template-columns:1fr 1.25fr;background:var(--soft);border-bottom:1px solid var(--line)}
+  .vs .head div{padding:14px 24px;font-size:12.5px;font-weight:700;letter-spacing:0.06em;color:var(--muted);text-transform:uppercase}
+  .vs .head div:first-child{border-right:1px solid var(--line)}
+
+  /* ── FAQ ───────────────────────── */
+  .faq{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:#fff}
+  details{border-bottom:1px solid var(--line-2)}
+  details:last-child{border-bottom:none}
+  summary{
+    list-style:none;cursor:pointer;padding:22px 26px;font-size:16.5px;font-weight:650;
+    display:flex;justify-content:space-between;gap:20px;align-items:flex-start;transition:background .15s;
+  }
+  summary::-webkit-details-marker{display:none}
+  summary:hover{background:var(--soft-2)}
+  summary::after{content:"+";font-size:22px;font-weight:400;color:var(--muted-2);line-height:1.1;flex:none}
+  details[open] summary::after{content:"−"}
+  details[open] summary{color:var(--accent-deep)}
+  details .a{padding:0 26px 24px;font-size:15.5px;color:var(--muted);line-height:1.75;max-width:64em}
+  details .a p{margin:0 0 12px}
+  details .a p:last-child{margin:0}
+
+  /* ── 마무리 ───────────────────── */
+  .close{
+    background:var(--ink);color:#fff;border-radius:20px;padding:56px 48px;margin:0 0 20px;
+  }
+  .close h2{color:#fff;max-width:15em}
+  .close p{color:#AEBACE;margin-top:20px;max-width:46em;font-size:17px}
+  .close .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px}
+  .close .chips .c{font-size:13.5px;font-weight:600;color:#DCE5F5;border:1px solid #2B3852;border-radius:100px;padding:8px 15px}
+
+  footer{padding:36px 0 64px;color:var(--muted-2);font-size:13.5px}
+
+  /* ── 반응형 ───────────────────── */
+  @media (max-width:880px){
+    .g4{grid-template-columns:repeat(2,1fr)}
+    .g3,.strat{grid-template-columns:1fr}
+    .vs .row,.vs .head{grid-template-columns:1fr}
+    .vs .row .a{border-right:none;border-bottom:1px solid var(--line-2)}
+    .vs .head div:first-child{border-right:none}
+    .vs .head div:last-child{display:none}
+  }
+  @media (max-width:620px){
+    body{font-size:16px}
+    section{padding:60px 0}
+    .g2,.g4{grid-template-columns:1fr}
+    .close{padding:40px 26px;border-radius:16px}
+    .steps .st{grid-template-columns:1fr;gap:12px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ HERO ═══════════ -->
+<header class="hero">
+  <div class="wrap">
+    <div class="brandline"><span class="dot"></span>BAROS CRM <span class="sep">/</span> 리드 배정</div>
+    <h1>리드는 사라지지 않습니다.<span class="b">누가 왜 받았는지도 남습니다.</span></h1>
+    <p class="lead">
+      리스·렌트 영업에서 리드가 사라지는 방식은 늘 조용합니다. 화면에는 “접수되었습니다”가 떴고,
+      어디에도 기록이 남지 않았을 뿐입니다. BAROS 는 이 문제를 “잘 관리하자”로 풀지 않고,
+      그 일이 일어날 수 있는 경로 자체를 없애는 방식으로 설계했습니다.
+    </p>
+    <div class="hero-meta">
+      <span class="chip">조직마다 다른 배정 규칙</span>
+      <span class="chip">배정 근거 전량 기록</span>
+      <span class="chip">유실 0 을 위한 트랜잭션 설계</span>
+      <span class="chip">3계층 권한 · 테넌트 격리</span>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════ 1. 문제 ═══════════ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">문제 정의</div>
+      <h2>리드가 사라지는 네 가지 경로</h2>
+      <p class="muted">
+        기존 영업 시스템을 분석하며 실제로 확인한 유형입니다.
+        넷 모두 장애로 잡히지 않습니다. 시스템은 정상 동작 중이었고, 다만 아무것도 남기지 않았습니다.
+        장애가 아니라 <em>설계의 공백</em>입니다.
+      </p>
+    </div>
+    <div class="grid g4">
+      <div class="card accentline">
+        <span class="n">CASE 01</span>
+        <h4>접수는 됐는데<br>아무에게도 가지 않았다</h4>
+        <p>고객은 상담을 기다리고 있고, 담당자는 그 리드의 존재를 모릅니다. 누구의 실수도 아니어서 아무도 발견하지 못합니다.</p>
+      </div>
+      <div class="card accentline">
+        <span class="n">CASE 02</span>
+        <h4>누구에게 갔는지<br>나중에 알 수 없다</h4>
+        <p>“이 고객은 누가 받았죠?”에 답할 근거가 없습니다. 담당자 간 분쟁도, 고객 클레임도 정황으로만 처리됩니다.</p>
+      </div>
+      <div class="card accentline">
+        <span class="n">CASE 03</span>
+        <h4>한 사람에게 몰린 것을<br>분기 마감에 알았다</h4>
+        <p>배분이 기운 것을 실적표로 확인합니다. 이미 3개월치 기회가 특정 담당자에게 쏠린 뒤입니다.</p>
+      </div>
+      <div class="card accentline">
+        <span class="n">CASE 04</span>
+        <h4>퇴사자가 명단을<br>들고 나갔다</h4>
+        <p>개인 파일과 개인 연락처로 관리된 고객 정보는 조직에 남지 않습니다. 회수할 대상이 무엇인지조차 특정되지 않습니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 2. 배정 규칙 = 데이터 ═══════════ -->
+<section class="alt">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">배정 규칙</div>
+      <h2>배정 규칙은 코드가 아니라 데이터입니다</h2>
+      <p class="muted">
+        신입에게 덜 주는 곳이 있고, 오늘 자리를 비운 사람을 빼야 하는 곳이 있고,
+        에이스에게 몰아주되 한계선은 두려는 곳이 있습니다.
+        많은 시스템에서 이 차이는 프로그램 안에 박혀 있어, 조직 정책이 바뀌면 개발 일정이 필요합니다.
+        BAROS 에서는 <em>화면에서 값을 바꾸는 일</em>입니다.
+      </p>
+    </div>
+
+    <div class="tablebox">
+      <div class="cap">규칙 단위로 정하는 값 <span>— 이 규칙이 어떻게 동작할지</span></div>
+      <div class="scroll">
+      <table>
+        <thead><tr><th>항목</th><th>설정</th><th>의미</th></tr></thead>
+        <tbody>
+          <tr><td>적용 범위</td><td class="val">관리사 전역 / 하위 범위</td><td class="desc">이 규칙이 어디에 걸리는가</td></tr>
+          <tr><td>대상 회원사</td><td class="val">회원사 지정</td><td class="desc">어느 회원사의 리드를 다루는가</td></tr>
+          <tr><td>배정 전략</td><td class="val">가중 최소부하 / 균등 회전 / 오래된 순</td><td class="desc">누구를 고를 것인가</td></tr>
+          <tr><td>우선순위</td><td class="val">정수 (낮을수록 먼저)</td><td class="desc">규칙이 여러 개일 때 적용 순서</td></tr>
+          <tr><td>초과 정책</td><td class="val">보류 / 초과 허용</td><td class="desc">전원이 상한에 걸렸을 때 어떻게 할 것인가</td></tr>
+          <tr><td>신규 보정</td><td class="val">사용 / 미사용</td><td class="desc">새로 합류한 담당자의 첫날 폭주 방지</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="tablebox">
+      <div class="cap">담당자별로 — 그리고 규칙마다 따로 — 정하는 값 <span>— 이 규칙에서 그 사람의 몫</span></div>
+      <div class="scroll">
+      <table>
+        <thead><tr><th>항목</th><th>설정</th><th>의미</th></tr></thead>
+        <tbody>
+          <tr><td>가중치</td><td class="val">1 이상</td><td class="desc">점수 = 현재 부하 ÷ 가중치. 신입 1, 에이스 3 처럼 “받을 몫의 비율”</td></tr>
+          <tr><td>하루 상한</td><td class="val">건수 (0 = 무제한)</td><td class="desc">하루에 받을 최대치</td></tr>
+          <tr><td>시간당 상한</td><td class="val">건수 (0 = 무제한)</td><td class="desc">특정 시간대 몰림 차단</td></tr>
+          <tr><td>연속배정 쿨다운</td><td class="val">초</td><td class="desc">방금 받은 사람에게 곧바로 다시 가지 않도록</td></tr>
+          <tr><td>순번</td><td class="val">정수</td><td class="desc">균등 회전에서의 차례</td></tr>
+          <tr><td>활성 여부</td><td class="val">사용 / 미사용</td><td class="desc">휴가·교육 중 일시 제외 (삭제가 아님)</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p><strong>이 여섯 값이 “담당자 정보”가 아니라 “규칙 × 담당자” 자리에 있는 이유.</strong></p>
+      <p style="margin-bottom:0">
+        가중치 3 은 그 사람의 속성이 아니라, <em>이 규칙 안에서 그가 갖는 몫</em>이기 때문입니다.
+        같은 담당자가 A 회원사 규칙에서는 가중치 3 에 하루 20건, B 회원사 규칙에서는 가중치 1 에 하루 5건일 수 있습니다.
+        담당자 정보에 값을 하나만 둘 경우 이 구분이 영원히 불가능해집니다.
+      </p>
+    </div>
+
+    <h3 style="margin-top:52px;margin-bottom:8px">전략 3종</h3>
+    <p class="muted small" style="max-width:60em;margin-bottom:24px">
+      셋은 서로 다른 프로그램이 아니라 <em>같은 선택 절차의 정렬 기준 3가지</em>입니다.
+      후보 필터링·상한 소비·기록 경로를 공유하므로, 전략을 바꿔도 “왜 그 사람인가”를 설명하는 방식은 그대로입니다.
+    </p>
+    <div class="strat">
+      <div class="s">
+        <span class="tag">WEIGHTED_FAIR</span>
+        <h4>가중 최소부하</h4>
+        <p>부하를 가중치로 나눈 점수가 가장 낮은 사람. 실력·연차에 따라 몫을 다르게 두면서도 한쪽으로 기울지 않게 합니다. 가장 널리 쓰이는 기본값입니다.</p>
+      </div>
+      <div class="s">
+        <span class="tag">EQUAL_ROTATION</span>
+        <h4>균등 회전</h4>
+        <p>정해진 순번대로 한 바퀴씩. “차례”라는 개념이 조직 문화에 이미 있는 경우, 설명이 필요 없는 방식입니다.</p>
+      </div>
+      <div class="s">
+        <span class="tag">LEAST_RECENT</span>
+        <h4>오래된 순</h4>
+        <p>가장 오래 리드를 받지 못한 사람 먼저. 건수보다 “기다린 시간”이 형평의 기준일 때 적합합니다.</p>
+      </div>
+    </div>
+
+    <p class="muted small" style="margin-top:22px;max-width:60em">
+      설정에 없는 전략 값이 들어오면 시스템은 조용히 기본값으로 대체하지 않고 배정을 중단하고 오류로 남깁니다.
+      오타 하나가 회사의 배분 정책을 몇 달간 몰래 바꾸는 일을 막기 위해서입니다.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════ 3. 시뮬레이터 ═══════════ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">동작 예시</div>
+      <h2>같은 팀, 같은 리드 한 건 — 전략에 따라 누구에게 갈까</h2>
+      <p class="muted">
+        오후 3시, 회원사 한 곳에서 리드 1건이 접수됐습니다.
+        아래는 실제 배정이 후보를 검토하는 순서를 그대로 옮긴 것입니다. 전략을 바꿔가며 확인해 보십시오.
+      </p>
+    </div>
+
+    <div class="sim">
+      <div class="sim-head">
+        <h4>영업 5팀 · 리드 #24817 접수</h4>
+        <p>탈락한 후보도 사라지지 않고 사유와 함께 남습니다. 이것이 나중에 “왜 나에게 안 왔느냐”에 답하는 근거가 됩니다.</p>
+      </div>
+      <div class="sim-tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-s="fair">가중 최소부하</button>
+        <button role="tab" aria-selected="false" data-s="rot">균등 회전</button>
+        <button role="tab" aria-selected="false" data-s="recent">오래된 순</button>
+      </div>
+      <div class="sim-body scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>담당자</th><th>가중치</th><th>오늘 배정</th><th id="simKeyHead">점수</th><th>판정</th>
+            </tr>
+          </thead>
+          <tbody id="simBody"></tbody>
+        </table>
+      </div>
+      <div class="sim-note" id="simNote"></div>
+    </div>
+
+    <div class="grid g3" style="margin-top:32px">
+      <div class="card">
+        <h4>휴가 중인 담당자</h4>
+        <p>삭제하지 않고 “미사용”으로 두면 그날의 후보에서만 빠집니다. 복귀하면 값 하나로 돌아오고, 그 사이 이력은 그대로 보존됩니다.</p>
+      </div>
+      <div class="card">
+        <h4>방금 받은 담당자</h4>
+        <p>쿨다운이 지나기 전에는 다음 리드가 가지 않습니다. 한 사람이 5분 동안 세 건을 받아 어느 것도 제대로 응대하지 못하는 상황을 막습니다.</p>
+      </div>
+      <div class="card">
+        <h4>상한에 도달한 담당자</h4>
+        <p>하루·시간당 상한은 “권장”이 아니라 실제 차단선입니다. 초과분이 필요할 때는 아래의 초과 정책이 별도로 판단합니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 4. 예외 상황 ═══════════ -->
+<section class="alt">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">예외 처리</div>
+      <h2>모두가 상한에 걸린 순간, 무엇을 할지도 고객이 정합니다</h2>
+    </div>
+
+    <div class="grid g2">
+      <div class="card" style="border-top:3px solid var(--warn)">
+        <span class="n">초과 정책 A</span>
+        <h4>보류 — 배정하지 않습니다</h4>
+        <p>리드는 미배정 상태로 남고, 사유가 함께 기록되며, 담당 관리자에게 알릴 수 있는 사건으로 발행됩니다.
+        “인원이 부족하다”는 사실이 숫자로 드러납니다.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--good)">
+        <span class="n">초과 정책 B</span>
+        <h4>초과 허용 — 배정하되 표시합니다</h4>
+        <p>고객을 기다리게 하지 않되, 그 건이 상한을 넘겨 배정된 것임을 배정 기록·집계·사건 세 곳에 남깁니다.
+        나중에 “왜 저 사람만 25건이냐”가 설명됩니다.</p>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <p style="margin-bottom:0">
+        레거시 시스템의 전형적인 처리는, 전원이 꽉 찼을 때 관리자 계정이 조용히 흡수하는 것이었습니다.
+        문제는 흡수가 아니라 <em>조용함</em>입니다. BAROS 에서 금지된 것은 후자입니다.
+      </p>
+    </div>
+
+    <h3 style="margin-top:52px;margin-bottom:14px">도입 첫날, 세팅이 끝나 있지 않아도 됩니다</h3>
+    <div class="grid g3">
+      <div class="card">
+        <h4>담당자가 0명인 회원사</h4>
+        <p>그날부터 리드를 받습니다. 담당자 풀이 비어 있으면 <strong>실패가 아니라</strong> 회원사 대표 채널 앞으로 배정 기록이 만들어지고 사유가 남습니다. 리드는 버려지지 않습니다.</p>
+      </div>
+      <div class="card">
+        <h4>계정이 아직 없는 담당자</h4>
+        <p>사람 먼저 등록하고 계정은 나중에 연결할 수 있습니다. 시스템 도입 순서가 조직의 채용 순서를 강제하지 않습니다.</p>
+      </div>
+      <div class="card">
+        <h4>규칙이 아직 없는 상태</h4>
+        <p>규칙 부재도 “원인 불명”이 아니라 명시적인 미배정 사유로 남습니다. 무엇을 설정해야 하는지가 화면에 드러납니다.</p>
+      </div>
+    </div>
+
+    <h3 style="margin-top:52px;margin-bottom:14px">사람이 개입해야 할 때</h3>
+    <p class="muted small" style="max-width:60em;margin-bottom:20px">
+      자동 배정만으로 끝나는 영업 조직은 없습니다. 개입 경로 네 가지가 처음부터 설계에 포함되어 있고,
+      <strong>사유 없이는 기록 자체가 거부됩니다.</strong> 취소 후 A → B → 다시 A 로 되돌리는 이력까지 남습니다.
+    </p>
+    <div class="taglist">
+      <span class="t">수동 배정 <span>규칙을 건너뛰고 지정</span></span>
+      <span class="t">재배정 <span>담당자 변경</span></span>
+      <span class="t">배정 취소 <span>배정 자체를 무효화</span></span>
+      <span class="t">반환 <span>담당자가 풀로 되돌림</span></span>
+    </div>
+    <p class="muted small" style="margin-top:20px;max-width:60em">
+      두 관리자가 같은 규칙을 동시에 수정해도, 나중에 저장한 쪽이 앞사람의 변경을 모르는 채 덮어쓰지 않습니다.
+      충돌은 조용히 사라지는 대신 화면에 드러납니다.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════ 5. 설명 책임 ═══════════ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">설명 가능성</div>
+      <h2>배정 시스템이 가장 자주 무너지는 지점은<br>성능이 아니라 설명 책임입니다</h2>
+      <p class="muted">
+        실패한 건에는 로그가 남지만 정상 배정에는 아무 정보도 남지 않는 구조가 흔합니다.
+        그래서 “왜 나에게 안 왔느냐”는 질문에 아무도 답하지 못합니다. BAROS 는 다음 다섯 가지를 구조로 막았습니다.
+      </p>
+    </div>
+
+    <div class="vs">
+      <div class="head"><div>흔한 구조</div><div>BAROS 의 구조</div></div>
+      <div class="row">
+        <div class="a">판정 기록이 배정 이후에 따로 저장돼, 그 사이에 문제가 생기면 근거만 사라진다</div>
+        <div class="b">판정 기록과 배정이 <strong>하나의 저장 단위</strong>입니다. 배정은 남았는데 근거는 없는 상태가 성립하지 않습니다.</div>
+      </div>
+      <div class="row">
+        <div class="a">정상 처리된 건에는 아무 기록이 없다</div>
+        <div class="b">정상 배정도 예외 없이 <strong>후보 전원</strong>의 가중치·현재 부하·점수·탈락 사유를 함께 남깁니다.</div>
+      </div>
+      <div class="row">
+        <div class="a">탈락 사유가 “순서가 그랬다”로 끝난다</div>
+        <div class="b">탈락 사유를 6가지로 구분해 각각 남깁니다. 일 상한 · 시간 상한 · 전역 상한 · 쿨다운 · 동시 경합 · 비활성.</div>
+      </div>
+      <div class="row">
+        <div class="a">미배정 원인이 “오류” 한 단어로 뭉개진다</div>
+        <div class="b">미배정 사유를 5가지로 구분합니다. 규칙 없음 · 용량 소진 · 확보 실패 · 설정 오류 · 예외.<br><span class="small muted">설정 오타로 인한 미배정이 일반 오류와 같은 칸에 섞이면, 원인이 어디에도 남지 않습니다.</span></div>
+      </div>
+      <div class="row">
+        <div class="a">기록은 쌓이지만 아무도 볼 수 없다</div>
+        <div class="b"><strong>배정 근거 조회</strong>로 판정 시각·전략·선택된 담당자·후보별 점수·순번 변화를 그대로 확인합니다.</div>
+      </div>
+    </div>
+
+    <div class="grid g2" style="margin-top:36px">
+      <div class="card" style="background:var(--soft-2)">
+        <h4>공정성 데이터도 남의 것은 보이지 않습니다</h4>
+        <p>판정 기록에도 조직 격리가 그대로 적용됩니다. 관리사 A 가 관리사 B 의 리드 번호로 조회해도
+        B 의 후보 구성과 점수는 나오지 않습니다. 배분 데이터는 곧 경쟁사 정보이기 때문입니다.</p>
+      </div>
+      <div class="card" style="background:var(--soft-2)">
+        <h4>설명하려다 개인정보를 흘리지 않습니다</h4>
+        <p>판정 기록에 들어가는 값은 전부 식별번호·수치·분류값뿐이며, 고객 개인정보 항목은 <strong>0개</strong>입니다.
+        투명성을 위한 기록이 유출 경로가 되지 않도록 애초에 담기지 않게 했습니다.</p>
+      </div>
+    </div>
+
+    <h3 style="margin-top:56px;margin-bottom:14px">신규 담당자가 첫날 리드를 몰아 받지 않습니다</h3>
+    <p class="muted" style="max-width:62em">
+      새로 합류한 담당자는 누적 실적이 0 입니다. 부하가 적은 사람을 고르는 방식에서는,
+      그날의 모든 리드가 그 사람에게 쏟아집니다. 신규 보정을 켜면 신규·복귀 담당자의 출발선을
+      <em>기존 담당자들의 최저 점수까지</em> 끌어올려, 첫날부터 자연스러운 자리에서 시작하게 합니다.
+    </p>
+    <p class="muted small" style="max-width:62em">
+      보정은 건수가 아니라 점수 기준으로 계산합니다. 건수에 하한을 씌운 뒤 나중에 가중치로 나누면,
+      가중치가 큰 신규 담당자는 여전히 맨 앞에 서게 되어 폭주가 그대로 남기 때문입니다.
+    </p>
+
+    <h3 style="margin-top:48px;margin-bottom:14px">배분이 기우는 것은 우연이 아니라 순서 문제입니다</h3>
+    <div class="steps">
+      <div class="st">
+        <div class="idx"></div>
+        <div>
+          <h4>순번을 저장보다 먼저 넘기면, 한 사람이 조용히 건너뛰어집니다</h4>
+          <p>저장이 실패한 만큼 특정 담당자의 차례가 소리 없이 사라지고, 이것이 누적되면 몇 달 뒤 눈에 띄지 않게 배분이 기웁니다.
+          BAROS 는 순번 갱신을 배정 저장 <strong>이후</strong>에 두고 같은 저장 단위로 묶었습니다.</p>
+        </div>
+      </div>
+      <div class="st">
+        <div class="idx"></div>
+        <div>
+          <h4>순번은 “목록의 몇 번째”가 아니라 사람을 직접 가리킵니다</h4>
+          <p>목록 위치로 기억하면 담당자 한 명이 휴가로 빠지는 순간 차례 전체가 한 칸씩 밀려 엉뚱한 사람으로 미끄러집니다.
+          BAROS 의 순번은 사람 자체를 가리키므로 후보가 바뀌어도 차례가 어긋나지 않습니다.</p>
+        </div>
+      </div>
+      <div class="st">
+        <div class="idx"></div>
+        <div>
+          <h4>동시에 들어온 리드가 같은 사람의 마지막 한 자리를 나눠 갖지 않습니다</h4>
+          <p>상한이 1자리 남았을 때 두 건이 동시에 들어오면, 확인과 차감 사이의 짧은 틈으로 둘 다 통과하는 일이 생깁니다.
+          BAROS 는 확인과 차감을 한 동작으로 처리하고, 처리 후 값을 다시 검증합니다. 상한은 상한대로 지켜집니다.</p>
+        </div>
+      </div>
+      <div class="st">
+        <div class="idx"></div>
+        <div>
+          <h4>이 순서를 지키기 위해 별도 인프라를 도입하지 않았습니다</h4>
+          <p>동시성 제어는 데이터베이스가 이미 보장하는 기능으로 처리합니다.
+          운영 구성요소가 하나 늘어날 때마다 그것이 멈췄을 때의 시나리오도 하나 늘어나기 때문입니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 6. 유실 방지 ═══════════ -->
+<section class="alt">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">유실 방지</div>
+      <h2>접수되면, 반드시 남습니다</h2>
+      <p class="muted">
+        배정이 아무리 정교해도 리드 자체가 사라지면 의미가 없습니다.
+        “접수됐다고 나왔는데 목록에 없다”가 발생할 자리를 다섯 군데에서 제거했습니다.
+      </p>
+    </div>
+
+    <div class="grid g2">
+      <div class="card">
+        <span class="n">01 · 접수</span>
+        <h4>저장이 끝난 뒤에야 “접수되었습니다”가 나갑니다</h4>
+        <p>리드 본문·고객 정보·추가 항목·후속 처리 예약이 하나의 저장 단위 안에 있고, 그 전부가 확정된 뒤에 성공 응답이 나갑니다.
+        화면의 문구와 데이터베이스의 상태가 어긋날 수 없습니다.</p>
+      </div>
+      <div class="card">
+        <span class="n">02 · 중복</span>
+        <h4>중복이라고 판단해도 버리지 않습니다</h4>
+        <p>저장은 하고, 상태를 ‘중복’으로 표시하고, 배분만 하지 않으며, 고객에게도 중복이라고 답합니다.
+        중복을 성공이라 답하고 뒤에서 지우면, 사라진 리드를 사라진 줄도 모르게 됩니다.</p>
+      </div>
+      <div class="card">
+        <span class="n">03 · 후속 처리</span>
+        <h4>알림·집계 같은 후속 작업이 유실되지 않습니다</h4>
+        <p>후속 작업을 먼저 데이터베이스에 적어두고, 저장이 확정된 다음 별도로 실행·재시도합니다.
+        (1분 → 5분 → 25분 → 2시간 간격) 끝내 실패해도 조용히 사라지지 않고 실패로 명시되어 남습니다.</p>
+      </div>
+      <div class="card">
+        <span class="n">04 · 배정 실패</span>
+        <h4>배정에 실패해도 리드는 남습니다</h4>
+        <p>배정 실패를 “오류”로 처리하면 앞서 저장한 리드까지 함께 되돌아가 사라집니다.
+        그래서 배정 실패는 오류가 아니라 <strong>하나의 결과</strong>이며, 모든 미배정은 상태·판정 기록·사건 세 흔적을 남깁니다.</p>
+      </div>
+    </div>
+
+    <div class="callout good">
+      <p><strong>05 · 추적 — 리드 1건을 하나의 번호로 끝까지 따라갑니다.</strong></p>
+      <p style="margin-bottom:0">
+        모든 요청에 추적 번호가 붙고 응답에도 그대로 돌아옵니다. 리드 · 감사 기록 · 개인정보 열람 기록 · 후속 작업 대기열이
+        전부 같은 번호를 갖습니다. 고객 문의가 들어왔을 때 기록처 일곱 곳을 뒤지지 않고, 번호 하나로 전 구간을 재구성합니다.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ 7. 신뢰 근거 ═══════════ -->
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">신뢰의 근거</div>
+      <h2>규칙을 문서가 아니라 빌드 조건으로 옮겼습니다</h2>
+      <p class="muted">
+        보안 규칙은 “지키자”고 정할 수 있습니다. 그러나 6개월 뒤, 마감에 쫓기는 화요일 밤에는 지켜지지 않습니다.
+        그래서 BAROS 의 핵심 규칙은 사람의 주의력이 아니라 <em>기계의 통과 조건</em>입니다.
+        아래 항목을 위반한 코드는 애초에 완성되지 않습니다.
+      </p>
+    </div>
+
+    <div class="tablebox">
+      <div class="cap">코드가 통과할 수 없는 조건</div>
+      <div class="scroll">
+      <table>
+        <thead><tr><th>규칙</th><th>비개발자를 위한 설명</th></tr></thead>
+        <tbody>
+          <tr><td>권한 검사 누락 금지</td><td class="desc">모든 기능 입구에 “누가 쓸 수 있는지”가 반드시 선언되어야 합니다. 공개 기능조차 <strong>공개라고 명시</strong>해야 합니다 — 선언 없음과 공개를 구분하지 못하면, 권한을 빠뜨린 기능은 반드시 통과하기 때문입니다.</td></tr>
+          <tr><td>조직 격리 우회 금지</td><td class="desc">데이터를 꺼내는 모든 경로에 소속 조직 조건이 자동으로 붙습니다. 개발자가 조건을 직접 쓰는 코드는 존재하지 않으므로, 실수로 빠뜨릴 자리도 없습니다.</td></tr>
+          <tr><td>개인정보 로그 유출 금지</td><td class="desc">고객 정보를 로그·감사·알림 경로로 넘기는 코드는 완성되지 않습니다. 유출 사고의 상당수는 해킹이 아니라 디버깅용 출력에서 시작됩니다.</td></tr>
+          <tr><td>모듈 경계 침범 금지</td><td class="desc">한 기능이 다른 기능의 내부 데이터를 직접 건드리지 못합니다. 기능 하나를 고쳤을 때 무관해 보이는 곳이 함께 망가지는 일을 구조적으로 줄입니다.</td></tr>
+          <tr><td>안전하지 않은 질의 조립 금지</td><td class="desc">외부 입력이 데이터베이스 명령으로 해석될 수 있는 작성 방식 자체를 금지합니다.</td></tr>
+          <tr><td>검증되지 않은 스키마 변경 금지</td><td class="desc">데이터 구조 변경은 자동 검사와 전원 리뷰를 통과해야 반영됩니다. 이미 적용된 변경을 나중에 손대는 것도 차단됩니다.</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="grid g3" style="margin-top:32px">
+      <div class="card">
+        <h4>격리를 주장이 아니라 공격으로 확인합니다</h4>
+        <p>관리사 A 계정으로 B 의 리드를 조회하고, 같은 전화번호로 검색하고, 조직 번호를 바꿔 넣어 권한 상승을 시도하는
+        공격 시나리오를 실제 요청으로 반복 검증합니다.</p>
+      </div>
+      <div class="card">
+        <h4>“없는 리드”와 “남의 리드”를 구분하지 않습니다</h4>
+        <p>두 응답이 달라지면, 응답 차이만으로 다른 조직이 어떤 고객을 보유했는지 하나씩 확인할 수 있게 됩니다.
+        그래서 두 경우를 같게 응답하는 것까지 검증 대상입니다.</p>
+      </div>
+      <div class="card">
+        <h4>흉내가 아니라 실제 환경에서 검증합니다</h4>
+        <p>암호화·검색 성능은 가짜 대체물이 아니라 실제 데이터베이스와 실제 보안 서비스 경로로 확인합니다.
+        대량 데이터를 넣고 검색이 느려지지 않는지 매번 자동으로 점검합니다.</p>
+      </div>
+    </div>
+
+    <h3 style="margin-top:56px;margin-bottom:14px">고객 개인정보를 다루는 방식</h3>
+    <div class="grid g2">
+      <div class="card">
+        <h4>기본이 마스킹입니다</h4>
+        <p>목록과 상세 화면에서 고객 정보는 <code>홍*동 · 010-****-5678</code> 로 표시됩니다.
+        원문을 보려면 권한 확인 → 조직 확인 → 열람 기록 → 복호화의 순서를 반드시 거치고, 표시 시간도 제한됩니다.</p>
+      </div>
+      <div class="card">
+        <h4>열람 사유를 자유롭게 적을 수 없습니다</h4>
+        <p>‘상담 진행’, ‘분쟁 검토’처럼 정해진 사유 코드만 허용합니다. 자유 입력을 허용하면 “확인”, “.” 같은 값으로 채워져
+        감사 기록이 형식만 남기 때문입니다.</p>
+      </div>
+      <div class="card">
+        <h4>같은 정보도 매번 다르게 저장됩니다</h4>
+        <p>같은 전화번호를 두 번 저장해도 저장된 암호문은 서로 다릅니다. 암호화된 데이터만 유출되더라도
+        두 값이 같은 사람인지조차 알 수 없습니다.</p>
+      </div>
+      <div class="card">
+        <h4>검색하려고 복호화하지 않습니다</h4>
+        <p>전화번호·이름 검색은 원문을 풀지 않고 대조 값으로 처리합니다. 편의를 위해 전체를 복호화하는 순간
+        위의 모든 설계가 무의미해지기 때문입니다.</p>
+      </div>
+    </div>
+    <p class="muted small" style="margin-top:20px;max-width:62em">
+      암호화 키는 애플리케이션 서버가 아니라 클라우드 키 관리 서비스가 보관하며, 서비스를 멈추지 않고 교체할 수 있는 절차가 준비되어 있습니다.
+      접속 IP 조차 감사 기록에 원문으로 남기지 않습니다 — IP 도 개인정보이고, 감사 기록은 보관 기간이 가장 길기 때문입니다.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════ 8. FAQ ═══════════ -->
+<section class="alt">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">자주 받는 질문</div>
+      <h2>도입 검토 시 실제로 물어보시는 것들</h2>
+    </div>
+    <div class="faq">
+      <details open>
+        <summary>랜딩 페이지마다 배정 규칙을 다르게 둘 수 있습니까?</summary>
+        <div class="a"><p>규칙의 적용 범위는 관리사 단위를 기본으로 하며, 더 좁은 범위로 한정할 수 있도록 데이터 구조가 설계되어 있습니다.
+        랜딩 페이지별 규칙 분리는 랜딩 관리 기능과 함께 제공됩니다. 도입 시점의 사용 범위는 협의 과정에서 명확히 안내드립니다.</p></div>
+      </details>
+      <details>
+        <summary>담당자를 한 명도 등록하지 않은 상태로 도입할 수 있습니까?</summary>
+        <div class="a"><p>가능합니다. 담당자 풀이 비어 있으면 리드를 버리지 않고 회원사 대표 채널 앞으로 배정 기록을 만들고 사유를 남깁니다.
+        계정이 아직 없는 담당자를 먼저 등록해 두는 것도 됩니다. <strong>사전 세팅 완료는 도입 조건이 아닙니다.</strong></p></div>
+      </details>
+      <details>
+        <summary>배정되면 담당자에게 즉시 알림이 갑니까?</summary>
+        <div class="a"><p>담당자 채널 정보와 알림 발행 지점은 설계에 포함되어 있으며, 알림톡·문자 등 실제 발송 채널 연동은 이어지는 단계에서 제공됩니다.
+        현재 보장하는 범위는 <strong>배정 사실과 그 근거가 유실 없이 기록된다</strong>는 지점까지입니다.
+        발송 채널이 붙는 시점에도 이 기록 구조는 그대로 사용됩니다.</p></div>
+      </details>
+      <details>
+        <summary>기존에 쓰던 방식과 다른 규칙이 필요하면 개발을 요청해야 합니까?</summary>
+        <div class="a"><p>가중치·상한·쿨다운·순번·활성 여부, 그리고 전략 선택과 초과 정책은 모두 설정 값입니다. 이 범위 안의 변경은 개발 일정이 필요하지 않습니다.
+        다만 “특정 차종 문의만 A팀으로” 같은 조건 분기는 규칙 설계 단계에서 함께 검토합니다.
+        가능한 것과 불가능한 것을 도입 전에 명확히 구분해 드립니다.</p></div>
+      </details>
+      <details>
+        <summary>담당자가 “나에게 왜 안 왔는지” 물으면 답할 수 있습니까?</summary>
+        <div class="a"><p>답할 수 있는 것이 이 시스템의 설계 목표입니다. 해당 리드의 배정 근거를 열면 그 시점의 후보 전원과
+        각자의 점수, 그리고 탈락한 사람의 사유(상한 초과, 쿨다운, 비활성 등)가 그대로 나옵니다.
+        정상 배정 건에도 예외 없이 기록이 남기 때문에, 문제가 생긴 뒤에 소급해 확인할 수 있습니다.</p></div>
+      </details>
+      <details>
+        <summary>ISO 27001 이나 ISMS-P 인증이 있습니까?</summary>
+        <div class="a"><p>없습니다. 인증 취득 이력도, 외부 모의해킹 보고서도 없습니다. 그 점을 감추지 않겠습니다.</p>
+        <p>대신 이 페이지에 적은 항목은 전부 코드 위치와 검증 항목으로 제시할 수 있는 것만 담았습니다.
+        권한 검사 누락, 안전하지 않은 질의, 개인정보 로그 유출, 조직 격리 누락은 사람의 검토가 아니라 빌드가 막고,
+        비밀 정보 유출과 취약한 외부 부품 유입은 배포 절차가 막습니다. 기술 검토를 원하시면 항목별 근거를 그대로 제공해 드립니다.</p></div>
+      </details>
+      <details>
+        <summary>도입 전에 어디까지 확인할 수 있습니까?</summary>
+        <div class="a"><p>배정 규칙의 데이터 정의, 판정 순서, 실패 시 분기표, 그리고 격리·암호화 검증 항목 목록을 문서 그대로 열람하실 수 있습니다.
+        “안전합니다”라는 문장에는 항상 그것을 보장하는 메커니즘이 붙어 있으며, 근거를 제시할 수 없는 항목은 이 페이지에 쓰지 않았습니다.</p></div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ CLOSE ═══════════ -->
+<section style="border-top:none;padding-top:20px">
+  <div class="wrap">
+    <div class="close">
+      <h2>“안전합니다”라는 문장은 근거 없이 쓰지 않았습니다.</h2>
+      <p>
+        이 페이지의 각 항목에는 그것을 보장하는 메커니즘이 붙어 있고, 대부분은 사람의 주의력이 아니라
+        빌드와 검증이 강제합니다. 기술 검토 시 항목별 코드 위치, 검증 케이스 목록, 데이터 구조 정의를 그대로 제공해 드립니다.
+      </p>
+      <div class="chips">
+        <span class="c">배정 규칙 정의서</span>
+        <span class="c">판정 흐름 · 실패 분기표</span>
+        <span class="c">격리 검증 시나리오</span>
+        <span class="c">개인정보 처리 구조</span>
+      </div>
+    </div>
+    <footer class="wrap" style="padding-left:0;padding-right:0">
+      BAROS CRM · 리드 배정 — 리스·렌트 영업 조직을 위한 리드 관리 시스템
+    </footer>
+  </div>
+</section>
+
+<script>
+(function(){
+  var members = [
+    { name:'김신입', w:1, today:3, cap:10, mins:95,  order:1, active:true  },
+    { name:'이대리', w:1, today:5, cap:10, mins:12,  order:2, active:true  },
+    { name:'박에이스', w:3, today:8, cap:20, mins:20,  order:3, active:true },
+    { name:'정과장', w:2, today:0, cap:10, mins:2880, order:4, active:false, skip:'비활성 — 휴가 처리' },
+    { name:'최주임', w:2, today:10, cap:10, mins:30,  order:5, active:true, capped:true }
+  ];
+
+  var views = {
+    fair: {
+      keyHead:'점수 (부하 ÷ 가중치)',
+      winner:'박에이스',
+      note:'<b>가중 최소부하</b> — 점수가 가장 낮은 <b>박에이스</b>(8 ÷ 3 = 2.67)가 받습니다. 8건으로 오늘 가장 많이 받았지만, 가중치 3 은 “세 사람 몫을 소화하기로 한 사람”이라는 뜻입니다. 절대 건수가 아니라 <b>정해둔 몫 대비 얼마나 채웠는가</b>로 판단합니다.',
+      key:function(m){ return (m.today/m.w).toFixed(2); }
+    },
+    rot: {
+      keyHead:'순번 (현재 차례: 김신입 다음)',
+      winner:'이대리',
+      note:'<b>균등 회전</b> — 직전 배정이 김신입이었으므로 다음 차례인 <b>이대리</b>가 받습니다. 부하가 더 가벼운 사람이 있어도 순서를 건너뛰지 않습니다. 차례를 기록하는 값은 “목록의 몇 번째”가 아니라 사람 자체를 가리키므로, 정과장이 휴가로 빠져도 차례가 밀리지 않습니다.',
+      key:function(m){ return m.order + '번'; }
+    },
+    recent: {
+      keyHead:'마지막 배정 이후 경과',
+      winner:'김신입',
+      note:'<b>오래된 순</b> — 가장 오래 기다린 <b>김신입</b>(95분)이 받습니다. 정과장은 2일 넘게 받지 않았지만 휴가로 비활성 상태여서 후보에서 제외되고, 그 사실 또한 사유와 함께 기록됩니다.',
+      key:function(m){ return m.mins >= 1440 ? Math.floor(m.mins/1440)+'일 전' : m.mins+'분 전'; }
+    }
+  };
+
+  var body = document.getElementById('simBody');
+  var head = document.getElementById('simKeyHead');
+  var note = document.getElementById('simNote');
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.sim-tabs button'));
+
+  function render(sKey){
+    var v = views[sKey];
+    head.textContent = v.keyHead;
+    note.innerHTML = v.note;
+    body.innerHTML = members.map(function(m){
+      var skipped = !m.active || m.capped;
+      var verdict;
+      if(!m.active){ verdict = '제외 · 비활성(휴가)'; }
+      else if(m.capped){ verdict = '제외 · 하루 상한 도달 (10/10)'; }
+      else if(m.name === v.winner){ verdict = '선택'; }
+      else { verdict = '후보 — 우선순위 낮음'; }
+      var cls = skipped ? 'skip' : (m.name === v.winner ? 'win' : '');
+      return '<tr class="'+cls+'">'
+        + '<td>'+m.name+'</td>'
+        + '<td>'+m.w+'</td>'
+        + '<td>'+m.today+'건 / 상한 '+m.cap+'</td>'
+        + '<td class="val">'+(skipped ? '—' : v.key(m))+'</td>'
+        + '<td class="desc">'+verdict+'</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  tabs.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      tabs.forEach(function(b){ b.setAttribute('aria-selected', b === btn ? 'true' : 'false'); });
+      render(btn.getAttribute('data-s'));
+    });
+  });
+
+  render('fair');
+})();
+</script>
+</body>
+</html>
